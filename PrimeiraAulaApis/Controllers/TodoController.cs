@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using PrimeiraAulaApis.Logic.Service;
 
 namespace PrimeiraAulaApis.Controllers
 {
@@ -6,65 +8,47 @@ namespace PrimeiraAulaApis.Controllers
     [Route("[controller]")]
     public class TodoController : ControllerBase
     {
-        private readonly AppDbContext dbContext;
-        public TodoController(AppDbContext dbContext) => this.dbContext = dbContext;
+        private readonly ITodoService service;
+        public TodoController(ITodoService service) => this.service = service;
 
 
         [HttpGet]
-        public IActionResult GetAll()
-        {
-            return Ok(dbContext.Todos);
-        }
+        public async Task<IActionResult> GetAll()
+            => Ok(await service.GetAll());
 
         [HttpGet("{id}")]
-        public IActionResult Get(Guid id)
-        {
-            var todo = dbContext.Todos.Find(id);
-
-            if (todo == null)
-                return NotFound();
-
-            return Ok(todo);
-        }
+        public async Task<IActionResult> Get(Guid id)
+            => Ok(await service.GetById(id));
 
         [HttpPost]
-        public IActionResult Create(Todo todo)
+        public async Task<IActionResult> Add(Todo todo)
         {
-            dbContext.Todos.Add(todo);
-            dbContext.SaveChanges();
-
-            return CreatedAtAction(nameof(Get), new { id = todo.Id});
+            var entity = await service.Add(todo);
+            return CreatedAtAction(nameof(Get), new { id = entity.Id }, entity);
         }
 
-        [HttpDelete]
-        public IActionResult Delete(Guid id)
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(Guid id)
         {
-            var todo = dbContext.Todos.Find(id);
-
-            if (todo == null)
-                return NotFound();
-
-            dbContext.Todos.Remove(todo);
-            dbContext.SaveChanges();
-
+            await service.Delete(id);
             return NoContent();
         }
 
         [HttpPut]
-        public IActionResult Put(Guid id, Todo todo)
+        public async Task<IActionResult> Put(Guid id, Todo todo)
         {
-            if (id != todo.Id)
-                return BadRequest();
+            await service.Replace(id, todo);
+            return NoContent();
+        }
 
-            var existing = dbContext.Todos.Find(id);
-            if (todo == null)
-                return NotFound();
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> Update(Guid id, JsonPatchDocument<Todo> patch)
+        {
+            var updated = new Todo();
+            patch.ApplyTo(updated);
 
-            dbContext.Entry(existing).CurrentValues.SetValues(todo);
-            dbContext.Todos.Update(existing);
-            dbContext.SaveChanges();
-
-            return AcceptedAtAction(nameof(Get), new { id = todo.Id });
+            await service.Update(id, updated);
+            return NoContent();
         }
     }
 }
